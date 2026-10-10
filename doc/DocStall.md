@@ -35,29 +35,26 @@ The `vfmul.vv` section repeats them with floating-point multiply at e32 and e16.
 
 ## Results: f32 (`vfadd.vv`, e32)
 
-### LMUL = 1
-| Pair | Stall with distance 0 | Vector instrs needed between | Scalar instrs needed between |
-|---|---|---|---|
-| LC `vle32`->`vfadd` | ~1 cycle (chain mode only; 0 in throughput mode) | 1 | ~4 |
-| CC `vfadd`->`vfadd` | ~2 cycles | 2 | ~10 |
-| CS `vfadd`->`vse32` | ~1.4 cycles | 2-3 | 4 (`nop`) / 5 (`alu`) |
-| LS `vle32`->`vse32` | ~3 cycles | 4 | 7 (`nop`) / 8 (`alu`) |
+| Pair | m1: stall at distance 0 | m1: vector / scalar instrs needed | m2: stall at distance 0 | m2: vector / scalar instrs needed | m4, m8 |
+|---|---|---|---|---|---|
+| LC `vle32`->`vfadd` | 1.0 (chain only) | 1 / 4 | 1.0 (chain only) | 1 / 4 | 0 |
+| CC `vfadd`->`vfadd` | 2.1 (chain only) | 2 / 10 | 2.0 (chain only) | 1 / 7 | 0 |
+| CS `vfadd`->`vse32` | 1.4 | 2-3 / 4 (`nop`), 5 (`alu`) | 0 | 0 / 0 | 0 |
+| LS `vle32`->`vse32` | 3.0 | 4 / 7 (`nop`), 8 (`alu`) | 0 (~0.5 with 1-2 vector fillers) | 0, or >=3 / 0 | 0 (m4 noisy) |
 
-Scalar fillers cover the gap much less effectively than vector fillers, which suggests the
-vector unit runs separately from the scalar pipeline. A scalar instruction only helps once it
-delays when the next vector instruction is issued.
+"(chain only)" means the stall shows in chain mode and is 0 in throughput mode (LC 0.01 and
+CC 0.00 at m1). CS and LS can only be measured in throughput mode.
 
-### LMUL = 2
-| Pair | Stall with distance 0 | Vector instrs needed between | Scalar instrs needed between |
-|---|---|---|---|
-| LC `vle32`->`vfadd` | ~1 cycle (chain mode only; 0 in throughput mode) | 1 | 4 |
-| CC `vfadd`->`vfadd` | ~2 cycles (chain mode only; 0 in throughput mode) | 1 | 7 |
-| CS `vfadd`->`vse32` | 0 (throughput mode) | 0 | 0 |
-| LS `vle32`->`vse32` | 0 (throughput mode; ~0.5 with 1-2 vector fillers) | 0, or >=3 | 0 |
+Notes, all LMULs:
+- Scalar fillers cover the gap much less effectively than vector fillers, which suggests the
+  vector unit runs separately from the scalar pipeline. A scalar instruction only helps once
+  it delays when the next vector instruction is issued.
 
+Notes, m2:
 - The m2 stalls only appear in chain mode. In throughput mode, independent copies overlap and
   hide them. That's the reason the first throughput-only runs showed no stall at m2.
-- Scalar fillers don't remove the stall steadily as N grows; it switches on and off with N, probably because of dual-issue pairing:
+- Scalar fillers don't remove the stall steadily as N grows; it switches on and off with N,
+  probably because of dual-issue pairing:
   - LC with `alu` stalls at N = 0, 1, 3 and is clean from N = 4 (N = 2 is also clean).
   - CC with `alu`/`nop` stalls at N = 0, 1, 2, 4, 6 and is clean from N = 7.
 
@@ -67,36 +64,22 @@ delays when the next vector instruction is issued.
 - LS has a small cost of about 0.5 cycles with 1-2 vector fillers. It's gone at distance 0
   and at 3 or more fillers, so it looks like a pairing effect rather than a latency stall.
 
-Source: `stall/f32/vfadd_m2.txt`, `stall/f32/vfadd_chain_m2.txt`.
-
-### LMUL = 4
-| Pair | Stall with distance 0 | Vector instrs needed between | Scalar instrs needed between |
-|---|---|---|---|
-| LC `vle32`->`vfadd` | 0 (throughput 0.00, chain -0.23 to 0.16) | 0 | 0 |
-| CC `vfadd`->`vfadd` | 0 (throughput 0.00, chain -0.01) | 0 | 0 |
-| CS `vfadd`->`vse32` | 0 (-0.01 to 0.00) | 0 | 0 |
-| LS `vle32`->`vse32` | 0 (-0.18 to 1.09, noise) | 0 | 0 |
-
+Notes, m4:
+- Measured values at distance 0: LC 0.00 (throughput) and -0.23 to 0.16 (chain), CC 0.00 and
+  -0.01, CS -0.01 to 0.00, LS -0.18 to 1.09.
 - No stall in chain mode either, so m4 hides the latency that m1 and m2 show.
 - LS readings at m4 are noisy, about +/-1 cycle. At N = 0 the four filler types run identical
   code, yet they read -0.18, 0.13, 0.01 and 1.09. The stall readings at larger N look like
   noise too: they swing both ways and don't fall as N grows.
 
-Source: `stall/f32/vfadd_m4.txt`, `stall/f32/vfadd_chain_m4.txt`.
-
-### LMUL = 8
-| Pair | Stall with distance 0 | Vector instrs needed between | Scalar instrs needed between |
-|---|---|---|---|
-| LC `vle32`->`vfadd` | 0 (throughput 0.03, chain 0.04) | 0 | 0 |
-| CC `vfadd`->`vfadd` | 0 (throughput 0.01, chain 0.01) | 0 | 0 |
-| CS `vfadd`->`vse32` | 0 (-0.02 to 0.09) | 0 | 0 |
-| LS `vle32`->`vse32` | 0 (-0.01 to 0.01) | 0 | 0 |
-
-Measured at distances 0-12 with every filler type, in both throughput mode and chain mode
-(chain mode for LC/CC only). The largest |stall| at any distance is 0.39 cycles, apart from a
-single 1.8-cycle outlier (LS, `nop` filler, N=6) that doesn't recur at N=5 or N=7. Each m8
-instruction keeps its unit busy for about 8 cycles or more, which covers the latency fully.
-Source: `stall/f32/vfadd_m8.txt`, `stall/f32/vfadd_chain_m8.txt`.
+Notes, m8:
+- Measured values at distance 0: LC 0.03 (throughput) and 0.04 (chain), CC 0.01 and 0.01,
+  CS -0.02 to 0.09, LS -0.01 to 0.01.
+- Measured at distances 0-12 with every filler type, in both throughput mode and chain mode
+  (chain mode for LC/CC only). The largest |stall| at any distance is 0.39 cycles, apart from
+  a single 1.8-cycle outlier (LS, `nop` filler, N=6) that doesn't recur at N=5 or N=7.
+- Each m8 instruction keeps its unit busy for about 8 cycles or more, which covers the
+  latency fully.
 
 ### Cost per pattern (all LMULs)
 - From m4 up there's no dependency stall: each vector instruction keeps its unit busy
@@ -124,40 +107,17 @@ Raw tables: `stall/f32/vfadd_m{1,2,4,8}.txt` (throughput) and
 
 ## Results: i32 (`vadd.vv` and `vmul.vv`, e32)
 Same tests with the compute op set to `vadd.vv` or `vmul.vv` (`./run.sh L 12 "" CHAIN vadd|vmul`).
-LS doesn't involve the compute op, so its row is the same for both ops and for f32. Cells
-with one value apply to both ops; otherwise `vadd` / `vmul`.
+LS doesn't involve the compute op, so its row is the same for both ops and for f32.
 
-### i32, LMUL = 1
-| Pair | Stall with distance 0 | Vector instrs needed between | Scalar instrs needed between |
-|---|---|---|---|
-| LC `vle32`->op | 1.0 / 1.0 (chain) | 1 | 4 |
-| CC op->op | 2.1 / 3.2 (chain) | 2 / 3 | 10 / 12 (`alu`), 10 (`nop`) |
-| CS op->`vse32` | 1.4 / 2.4 | 2 / 3 | 4 / 6 (`alu`), 5 (`nop`) |
-| LS `vle32`->`vse32` | 3.0 | 4 | 7 (`alu`) / 6 (`nop`) |
-
-### i32, LMUL = 2
-| Pair | Stall with distance 0 | Vector instrs needed between | Scalar instrs needed between |
-|---|---|---|---|
-| LC `vle32`->op | 1.0 / 2.0 (chain only) | 1 | 4 |
-| CC op->op | 2.1 / 3.2 (chain only) | 1 | 7 / 12 (`alu`), 10 (`nop`) |
-| CS op->`vse32` | 0 / ~0.35 | 0 / 2 | 0 / 6 |
-| LS `vle32`->`vse32` | 0 | 0 | 0 |
-
-### i32, LMUL = 4
-| Pair | Stall with distance 0 | Vector instrs needed between | Scalar instrs needed between |
-|---|---|---|---|
-| LC `vle32`->op | 0 | 0 | 0 |
-| CC op->op | 0 | 0 | 0 |
-| CS op->`vse32` | 0 | 0 | 0 |
-| LS `vle32`->`vse32` | 0 (noisy) | 0 | 0 |
-
-### i32, LMUL = 8
-| Pair | Stall with distance 0 | Vector instrs needed between | Scalar instrs needed between |
-|---|---|---|---|
-| LC `vle32`->op | 0 | 0 | 0 |
-| CC op->op | 0 | 0 | 0 |
-| CS op->`vse32` | 0 | 0 | 0 |
-| LS `vle32`->`vse32` | 0 | 0 | 0 |
+| Pair | m1: stall at distance 0 | m1: vector / scalar instrs needed | m2: stall at distance 0 | m2: vector / scalar instrs needed | m4, m8 |
+|---|---|---|---|---|---|
+| LC `vle32`->`vadd` | 1.0 (chain only) | 1 / 4 | 1.0 (chain only) | 1 / 4 | 0 |
+| LC `vle32`->`vmul` | 1.0 (chain only) | 1 / 4 | 2.0 (chain only) | 1 / 4 | 0 |
+| CC `vadd`->`vadd` | 2.1 (chain only) | 2 / 10 | 2.1 (chain only) | 1 / 7 | 0 |
+| CC `vmul`->`vmul` | 3.2 (chain only) | 3 / 12 (`alu`), 10 (`nop`) | 3.2 (chain only) | 1 / 12 (`alu`), 10 (`nop`) | 0 |
+| CS `vadd`->`vse32` | 1.4 | 2 / 4 | 0 | 0 / 0 | 0 |
+| CS `vmul`->`vse32` | 2.4 | 3 / 6 (`alu`), 5 (`nop`) | ~0.35 | 2 / 6 | 0 |
+| LS `vle32`->`vse32` | 3.0 | 4 / 7 (`alu`), 6 (`nop`) | 0 | 0 / 0 | 0 (m4 noisy) |
 
 Notes:
 - `vadd` gives the same numbers as `vfadd` at every LMUL, so the f32 tables also apply to
@@ -185,8 +145,8 @@ The X60 supports Zvfh, so f16 arithmetic runs natively.
 
 | Pair | m1: stall at distance 0 | m1: vector / scalar instrs needed | m2: stall at distance 0 | m2: vector / scalar instrs needed | m4, m8 |
 |---|---|---|---|---|---|
-| LC `vle16`->`vfadd` | 1.0 (chain) | 1 / 4 | 1.0 (chain only) | 1 / 4 | 0 |
-| CC `vfadd`->`vfadd` | 2.0 (chain) | 2 / 10 | 2.1 (chain only) | 1 / 7 | 0 |
+| LC `vle16`->`vfadd` | 1.0 (chain only) | 1 / 4 | 1.0 (chain only) | 1 / 4 | 0 |
+| CC `vfadd`->`vfadd` | 2.0 (chain only) | 2 / 10 | 2.1 (chain only) | 1 / 7 | 0 |
 | CS `vfadd`->`vse16` | 1.4 | 2 / 4 (`nop`), 5 (`alu`) | 0 | 0 / 0 | 0 |
 | LS `vle16`->`vse16` | 3.0 | 4 / 7 (`alu`), 6 (`nop`) | 0 (~0.5 with 1-2 vector fillers) | 0, or >=3 / 0 | 0 |
 
@@ -216,8 +176,8 @@ Same tests with `vfmul.vv` as the compute op, at e32 (f32) and e16 (f16):
 
 | Pair | m1: stall at distance 0 | m1: vector / scalar instrs needed | m2: stall at distance 0 | m2: vector / scalar instrs needed | m4, m8 |
 |---|---|---|---|---|---|
-| LC load -> `vfmul` | 1.0 (chain) | 1 / 4 | 1.0 (chain only) | 1 / 4 | 0 |
-| CC `vfmul` -> `vfmul` | 2.0-2.1 (chain) | 2 / 10 | 2.1 (chain only) | 1 / 7 | 0 |
+| LC load -> `vfmul` | 1.0 (chain only) | 1 / 4 | 1.0 (chain only) | 1 / 4 | 0 |
+| CC `vfmul` -> `vfmul` | 2.0-2.1 (chain only) | 2 / 10 | 2.1 (chain only) | 1 / 7 | 0 |
 | CS `vfmul` -> store | 1.4 | 2 / 4 | 0 | 0 / 0 | 0 |
 | LS load -> store | 3.0 | 4 / 7 (`alu`), 6 (`nop`) | 0 | 0, or >= 3 / 0 | 0 |
 
@@ -228,13 +188,54 @@ The table is the same for f32 and f16.
   m2, m4 and m8, and CC costs 4.0, 4.0, 8.0 and 16.0.
 - So floating-point multiply has the same latency as floating-point add here, unlike integer
   `vmul`, which needs more distance than `vadd` (see the i32 section).
-- Noise: f32 m4 LS reads up to about ±1 cycle with no trend, and single readings of
+- Noise: f32 m4 LS reads up to about +/-1 cycle with no trend, and single readings of
   0.5-0.6 cycles appear in the m4 CS rows (f32, N = 6 and 8) and in the m8 LS rows
   (f16, `vfadd`/`nop` fillers).
   None of them repeat at neighbouring N.
 
 Raw tables: `stall/f32/vfmul_m{1,2,4,8}.txt`, `stall/f32/vfmul_chain_m{1,2,4,8}.txt`,
 `stall/f16/vfmul_m{1,2,4,8}.txt`, `stall/f16/vfmul_chain_m{1,2,4,8}.txt`.
+
+## Results: mask producer (`vmslt.vv`)
+The producer is a compare at LMUL L that writes one mask register, like
+`%44:vr = PseudoVMSLT_VV_M4 %30, %68`. Three consumers, all reading that mask
+(`GEN=genmask.py ./run.sh L 12 "" CHAIN`):
+
+| Pattern | Producer -> consumer |
+|---|---|
+| MA | `vmslt.vv vM` -> `vmand.mm vD, vM, vM` (mask op, like `PseudoVMAND_MM_B8`) |
+| MV | `vmslt.vv vM` -> `vmv1r.v vD, vM` (what `$v0 = COPY %44` becomes) |
+| MK | `vmslt.vv v0` -> `vadd.vv vY, vS, vS, v0.t` at LMUL L (a `v0.t`-masked op, like a masked vmerge or store) |
+
+| LMUL | Stall at distance 0 | Vector instrs needed between | Scalar instrs needed between |
+|---|---|---|---|
+| m1 | 2.0 (throughput and chain) | 2 | 10 (`nop`) / 12 (`alu`) |
+| m2 | 2.0 | 2 | 12 (`nop`) / >12 (`alu`) |
+| m4 | 2.0 | 1 | >12 |
+| m8 | 2.0 | 1 | >12 |
+
+The values are the same for MA, MV and MK.
+
+- **A mask compare stalls its consumer about 2 cycles at every LMUL**, m4 and m8
+  included, and in throughput mode too. So the "no stall from m4 up" result for
+  full-width ops does not apply. There the consumer's own long occupancy covered the
+  latency; the consumers of a mask are short, so nothing covers it.
+- So the gap does not come from the producer's LMUL row (m4 -> 0) or from the m1 row.
+  It is its own case: 2 vector instructions at m1/m2, 1 at m4/m8, since an m4/m8 filler
+  is long.
+- Scalar fillers barely help. At m4/m8 in chain mode the stall is still 2.0 cycles at
+  N = 12, so only vector instructions in between count.
+- MK in throughput mode reads 3 cycles at m2-m8, and with vector fillers it falls to 1 and
+  stays there at any N. The extra cycle comes from the next copy's compare rewriting `v0`
+  right after this copy's masked op reads it, which only happens in the dep version. In
+  chain mode MK reaches 0 with 1 vector filler at m4, like MA and MV.
+- Cycles per copy at distance 0 (throughput, dep / nodep): MA 5.0 / 3.0 at m1, 11.0 / 9.0
+  at m4, 19.3 / 17.1 at m8.
+- Only `vmslt.vv` was measured. `ExpandPseudos` assumes the other integer and float
+  compares (`vmseq`, `vmsne`, `vmsle`, `vmsgt`, `vmfeq`, `vmflt`, ...) behave the same.
+
+Raw tables: `stall/mask/vmslt_m{1,2,4,8}.txt` (throughput) and
+`stall/mask/vmslt_chain_m{1,2,4,8}.txt` (chain).
 
 ## Minimum gap when sinking (m1, m2)
 When moving a producer down toward its consumer (or a consumer up toward its producer), keep
@@ -274,9 +275,9 @@ How to count the gap:
   each pair separately.
 
 Caveats:
-- At m2, the LC and CC stalls only appear in chain mode, where nothing else can overlap with
-  them. In a loop with enough independent work they may already be hidden; the gap is still
-  the safe choice.
+- At m1 and m2, the LC and CC stalls only appear in chain mode, where nothing else can
+  overlap with them. In a loop with enough independent work they may already be hidden; the
+  gap is still the safe choice.
 - With scalar fillers only, some smaller gaps happen to be clean (e.g. CC at m2 is clean at
   N = 3 and 5 but stalls at 4 and 6). Those are pairing effects; the table gives the gap
   from which every larger gap is clean.
@@ -375,13 +376,15 @@ nosched : L C C L L C C S C L C L C C S L C C C S L C C C C L C S
    - m1: use 1 vector instruction between for LC, 2 for CC, 2-3 for CS and 4 for LS.
    - m2: use 1 vector instruction between for LC and CC; CS and LS showed no stall.
    - Scalar fillers need several times as many (see the tables).
-   - m2's stalls only appear when nothing else can overlap with them.
+   - The LC and CC stalls (m1 and m2) only appear when nothing else can overlap with them.
    - f16 behaves exactly like f32, including cycles per copy.
    - `vfmul` behaves exactly like `vfadd`, for f32 and f16.
    - i32: `vadd` behaves like `vfadd`. `vmul` needs more: 3 vector instructions for CC and
      CS at m1, plus a 2-cycle LC stall and a small CS stall at m2.
 2. At **LMUL = 4 and 8**, spacing producer and consumer apart gains nothing, for f32,
-   f16 and i32, add and multiply alike.
+   f16 and i32, add and multiply alike. The exception is a mask compare: its consumer
+   stalls about 2 cycles at every LMUL and needs 1 vector instruction between at m4/m8
+   (2 at m1/m2).
    What helps is overlapping loads with compute and limiting how loads and stores mix.
 3. For s279, m8 loses to m4 because of spills, whatever the schedule. m4 with `topdown`
    is the fastest measured version.
@@ -393,6 +396,7 @@ nosched : L C C L L C C S C L C L C C S L C C C S L C C C C L C S
 |---|---|
 | `run.sh [LMUL] [MAXN] [PATTERN] [CHAIN] [OP]` | generate, copy to the board, build and run the microbenchmark (e.g. `./run.sh 1 12 "" 1 vmul`); OP = `vfadd` (default), `vfmul`, `vadd`, `vmul`; prefix `SEW=16` for e16 (f16) |
 | `gen.py` | writes `bench.S` and `tests.h` |
+| `genmask.py` | same for the mask-producer tests (MA, MV, MK); select with `GEN=genmask.py` |
 | `driver.c` | runs each test with the cycle counter and prints dep / nodep / stall |
 | `s279.sh [LMULs]` | s279 check, default LMULs 1 2 4 8 (`BUILD=1` rebuilds llvm first, as `g.sh` does) |
 | `s279drv.c` | timing driver for `s279()` |
@@ -401,3 +405,21 @@ nosched : L C C L L C C S C L C L C C S L C C C S L C C C C L C S
 
 Note: the board's binutils is older than llc. `s279.sh` strips the `.attribute` and
 `.option arch` lines before assembling on the board.
+
+## Gap used by `ExpandPseudos`
+Minimum gap (vector / scalar-only instructions) that `FindFirstUseToSinkTo`, `FindFirstUseToSinkToGroup`,
+`ProcessRematLoads` and `ProcessReverseRematChain` keep between a producer and its consumer
+(`minStallGap` in `ExpandPseudos.cpp`):
+
+| | m1 (and fractional) | m2 | m4, m8 |
+|---|---|---|---|
+| LC | 1 / 4 | 1 / 4 | 0 |
+| CC | 2 / 10 (int mul: 3 / 12) | 1 / 7 (int mul: 1 / 12) | 0 |
+| CS | 3 / 5 (int mul: 3 / 6) | 0 / 0 (int mul: 2 / 6) | 0 |
+| LS | 4 / 8 | 0 / 0 | 0 |
+| mask compare -> any | 2 / 12 | 2 / none | 1 / none |
+
+A mask-compare producer (`isMaskCompareName`: `PseudoVMSEQ/SNE/SLT/SLE/SGT` and
+`PseudoVMFEQ/FNE/FLT/FLE/FGT/FGE`) takes the last row whatever the consumer is. "none"
+(`NoScalarGap`) means no number of scalar-only instructions counts as enough; the gap
+must contain vector instructions.

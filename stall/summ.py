@@ -33,7 +33,8 @@ thr = parse(sys.argv[1])
 chain = parse(sys.argv[2]) if len(sys.argv) > 2 else {}
 print("| Pair | Stall with distance 0 | Vector instrs needed between | Scalar instrs needed between |")
 print("|---|---|---|---|")
-for pat in ("LC", "CC", "CS", "LS"):
+# patterns in file order (LC/CS/LS/CC from gen.py, MA/MV/MK from genmask.py)
+for pat in dict.fromkeys(p for p, _ in thr):
     src = chain if (pat, "alu") in chain else thr
     mode = "chain" if src is chain else "throughput"
     d0 = [src[(pat, k)][0] for k in ("alu", "nop", "vadd", "vfadd")]

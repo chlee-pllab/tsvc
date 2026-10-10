@@ -33,12 +33,21 @@ s-%:
 
 r-%:
 	$(LLC) -mattr=+m,+f,+d,+v -disable-lsr -relocation-model=pic -riscv-v-vector-bits-min=256 \
-  -stop-after=machine-scheduler $*.llir -o $*.mir -debug-only=registerpressure,expandpseudos \
+  -stop-after=machine-scheduler $*.llir -o $*-remat.mir -debug-only=expandpseudos \
   -custom-remat
 
-run-%:
+n-%:
 	$(LLC) -mattr=+m,+f,+d,+v -disable-lsr -relocation-model=pic -riscv-v-vector-bits-min=256 \
-  -stop-after=machine-scheduler $*.llir -o $*.mir
+  -stop-after=machine-scheduler $*.llir -o $*.mir -debug-only=expandpseudos
+
+rg-%:
+	$(LLC) -mattr=+m,+f,+d,+v -disable-lsr -relocation-model=pic -riscv-v-vector-bits-min=256 \
+  -stop-after=virtregrewriter $*.llir -o $*-remat-greedy.mir -debug-only=expandpseudos \
+  -custom-remat
+
+ng-%:
+	$(LLC) -mattr=+m,+f,+d,+v -disable-lsr -relocation-model=pic -riscv-v-vector-bits-min=256 \
+  -stop-after=virtregrewriter $*.llir -o $*-greedy.mir -debug-only=expandpseudos
 
 stat-%:
 	$(LLC) -mattr=+m,+f,+d,+v -disable-lsr -relocation-model=pic -riscv-v-vector-bits-min=256 \

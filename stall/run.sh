@@ -5,6 +5,7 @@
 cd $(dirname $0)
 REMOTE=chlee@140.114.78.64
 LMUL=${1:-4}; MAXN=${2:-16}; PAT=$3; CHAIN=${4:-0}; OP=${5:-vfadd}
-python3 gen.py $LMUL $MAXN $CHAIN $OP || exit 1
+# GEN=genmask.py runs the mask-producer tests instead (OP is ignored)
+python3 ${GEN:-gen.py} $LMUL $MAXN $CHAIN $OP || exit 1
 scp -q bench.S tests.h driver.c $REMOTE:stall/ || exit 1
 ssh $REMOTE "cd stall && gcc -O2 -march=rv64gcv driver.c bench.S -o bench && taskset -c 4 ./bench $PAT"

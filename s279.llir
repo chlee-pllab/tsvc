@@ -1,0 +1,165 @@
+; ModuleID = 's279.c'
+source_filename = "s279.c"
+target datalayout = "e-m:e-p:64:64-i64:64-i128:128-n32:64-S128"
+target triple = "riscv64-unknown-linux-gnu"
+
+@a = local_unnamed_addr global [1000 x i32] zeroinitializer, align 4
+@b = local_unnamed_addr global [1000 x i32] zeroinitializer, align 4
+@d = local_unnamed_addr global [1000 x i32] zeroinitializer, align 4
+@e = local_unnamed_addr global [1000 x i32] zeroinitializer, align 4
+@c = local_unnamed_addr global [1000 x i32] zeroinitializer, align 4
+
+; Function Attrs: nofree norecurse nosync nounwind memory(readwrite, argmem: none, inaccessiblemem: none, target_mem: none) uwtable vscale_range(2,1024)
+define void @s279() local_unnamed_addr #0 {
+entry:
+  %0 = tail call i64 @llvm.vscale.i64()
+  %min.iters.check = icmp samesign ugt i64 %0, 125
+  br i1 %min.iters.check, label %for.body.preheader, label %vector.ph
+
+vector.ph:                                        ; preds = %entry
+  %1 = shl nuw nsw i64 %0, 3
+  %.not = sub nsw i64 0, %1
+  %n.vec = and i64 %.not, 1000
+  br label %vector.body
+
+vector.body:                                      ; preds = %vector.body, %vector.ph
+  %index = phi i64 [ 0, %vector.ph ], [ %index.next, %vector.body ]
+  %2 = getelementptr inbounds nuw [4 x i8], ptr @a, i64 %index
+  %wide.load = load <vscale x 8 x i32>, ptr %2, align 4, !tbaa !12
+  %3 = icmp sgt <vscale x 8 x i32> %wide.load, zeroinitializer
+  %4 = xor <vscale x 8 x i1> %3, splat (i1 true)
+  %5 = getelementptr [4 x i8], ptr @b, i64 %index
+  %wide.load68 = load <vscale x 8 x i32>, ptr %5, align 4, !tbaa !12
+  %6 = getelementptr inbounds nuw [4 x i8], ptr @d, i64 %index
+  %wide.load69 = load <vscale x 8 x i32>, ptr %6, align 4, !tbaa !12
+  %7 = mul nsw <vscale x 8 x i32> %wide.load69, %wide.load69
+  %8 = sub nsw <vscale x 8 x i32> %7, %wide.load68
+  tail call void @llvm.masked.store.nxv8i32.p0(<vscale x 8 x i32> %8, ptr align 4 %5, <vscale x 8 x i1> %4), !tbaa !12
+  %9 = icmp sgt <vscale x 8 x i32> %8, %wide.load
+  %10 = getelementptr [4 x i8], ptr @c, i64 %index
+  %wide.load70 = load <vscale x 8 x i32>, ptr %10, align 4, !tbaa !12
+  %11 = select <vscale x 8 x i1> %4, <vscale x 8 x i1> %9, <vscale x 8 x i1> zeroinitializer
+  %12 = getelementptr inbounds nuw [4 x i8], ptr @e, i64 %index
+  %wide.load71 = load <vscale x 8 x i32>, ptr %12, align 4, !tbaa !12
+  %13 = mul nsw <vscale x 8 x i32> %wide.load71, %wide.load69
+  %14 = add nsw <vscale x 8 x i32> %wide.load70, %13
+  tail call void @llvm.masked.store.nxv8i32.p0(<vscale x 8 x i32> %14, ptr align 4 %10, <vscale x 8 x i1> %11), !tbaa !12
+  %wide.load73 = load <vscale x 8 x i32>, ptr %10, align 4, !tbaa !12
+  %15 = mul nsw <vscale x 8 x i32> %wide.load71, %wide.load71
+  %16 = sub nsw <vscale x 8 x i32> %15, %wide.load73
+  tail call void @llvm.masked.store.nxv8i32.p0(<vscale x 8 x i32> %16, ptr align 4 %10, <vscale x 8 x i1> %3), !tbaa !12
+  %wide.load75 = load <vscale x 8 x i32>, ptr %5, align 4, !tbaa !12
+  %wide.load76 = load <vscale x 8 x i32>, ptr %6, align 4, !tbaa !12
+  %predphi = select <vscale x 8 x i1> %3, <vscale x 8 x i32> %wide.load76, <vscale x 8 x i32> %wide.load69
+  %predphi77 = select <vscale x 8 x i1> %9, <vscale x 8 x i32> %14, <vscale x 8 x i32> %wide.load70
+  %predphi78 = select <vscale x 8 x i1> %3, <vscale x 8 x i32> %16, <vscale x 8 x i32> %predphi77
+  %predphi79 = select <vscale x 8 x i1> %3, <vscale x 8 x i32> %wide.load75, <vscale x 8 x i32> %8
+  %17 = mul nsw <vscale x 8 x i32> %predphi, %predphi78
+  %18 = add nsw <vscale x 8 x i32> %17, %predphi79
+  store <vscale x 8 x i32> %18, ptr %2, align 4, !tbaa !12
+  %index.next = add nuw i64 %index, %1
+  %19 = icmp eq i64 %index.next, %n.vec
+  br i1 %19, label %middle.block, label %vector.body, !llvm.loop !13
+
+middle.block:                                     ; preds = %vector.body
+  %cmp.n = icmp eq i64 %n.vec, 1000
+  br i1 %cmp.n, label %for.cond.cleanup, label %for.body.preheader
+
+for.body.preheader:                               ; preds = %entry, %middle.block
+  %indvars.iv.ph = phi i64 [ 0, %entry ], [ %n.vec, %middle.block ]
+  br label %for.body
+
+for.cond.cleanup:                                 ; preds = %L30, %middle.block
+  ret void
+
+for.body:                                         ; preds = %for.body.preheader, %L30
+  %indvars.iv = phi i64 [ %indvars.iv.next, %L30 ], [ %indvars.iv.ph, %for.body.preheader ]
+  %arrayidx = getelementptr inbounds nuw [4 x i8], ptr @a, i64 %indvars.iv
+  %20 = load i32, ptr %arrayidx, align 4, !tbaa !12
+  %cmp1 = icmp sgt i32 %20, 0
+  br i1 %cmp1, label %L20, label %if.end
+
+if.end:                                           ; preds = %for.body
+  %arrayidx3 = getelementptr inbounds nuw [4 x i8], ptr @b, i64 %indvars.iv
+  %21 = load i32, ptr %arrayidx3, align 4, !tbaa !12
+  %arrayidx5 = getelementptr inbounds nuw [4 x i8], ptr @d, i64 %indvars.iv
+  %22 = load i32, ptr %arrayidx5, align 4, !tbaa !12
+  %mul = mul nsw i32 %22, %22
+  %add = sub nsw i32 %mul, %21
+  store i32 %add, ptr %arrayidx3, align 4, !tbaa !12
+  %cmp14.not = icmp sgt i32 %add, %20
+  br i1 %cmp14.not, label %if.end16, label %if.end.L30_crit_edge
+
+if.end.L30_crit_edge:                             ; preds = %if.end
+  %arrayidx39.phi.trans.insert = getelementptr inbounds nuw [4 x i8], ptr @c, i64 %indvars.iv
+  %.pre66 = load i32, ptr %arrayidx39.phi.trans.insert, align 4, !tbaa !12
+  br label %L30
+
+if.end16:                                         ; preds = %if.end
+  %arrayidx20 = getelementptr inbounds nuw [4 x i8], ptr @e, i64 %indvars.iv
+  %23 = load i32, ptr %arrayidx20, align 4, !tbaa !12
+  %mul21 = mul nsw i32 %23, %22
+  %arrayidx23 = getelementptr inbounds nuw [4 x i8], ptr @c, i64 %indvars.iv
+  %24 = load i32, ptr %arrayidx23, align 4, !tbaa !12
+  %add24 = add nsw i32 %24, %mul21
+  store i32 %add24, ptr %arrayidx23, align 4, !tbaa !12
+  br label %L30
+
+L20:                                              ; preds = %for.body
+  %arrayidx26 = getelementptr inbounds nuw [4 x i8], ptr @c, i64 %indvars.iv
+  %25 = load i32, ptr %arrayidx26, align 4, !tbaa !12
+  %arrayidx29 = getelementptr inbounds nuw [4 x i8], ptr @e, i64 %indvars.iv
+  %26 = load i32, ptr %arrayidx29, align 4, !tbaa !12
+  %mul32 = mul nsw i32 %26, %26
+  %add33 = sub nsw i32 %mul32, %25
+  store i32 %add33, ptr %arrayidx26, align 4, !tbaa !12
+  %arrayidx37.phi.trans.insert = getelementptr inbounds nuw [4 x i8], ptr @b, i64 %indvars.iv
+  %.pre = load i32, ptr %arrayidx37.phi.trans.insert, align 4, !tbaa !12
+  %arrayidx41.phi.trans.insert = getelementptr inbounds nuw [4 x i8], ptr @d, i64 %indvars.iv
+  %.pre67 = load i32, ptr %arrayidx41.phi.trans.insert, align 4, !tbaa !12
+  br label %L30
+
+L30:                                              ; preds = %if.end.L30_crit_edge, %L20, %if.end16
+  %27 = phi i32 [ %22, %if.end.L30_crit_edge ], [ %.pre67, %L20 ], [ %22, %if.end16 ]
+  %28 = phi i32 [ %.pre66, %if.end.L30_crit_edge ], [ %add33, %L20 ], [ %add24, %if.end16 ]
+  %29 = phi i32 [ %add, %if.end.L30_crit_edge ], [ %.pre, %L20 ], [ %add, %if.end16 ]
+  %mul42 = mul nsw i32 %27, %28
+  %add43 = add nsw i32 %mul42, %29
+  store i32 %add43, ptr %arrayidx, align 4, !tbaa !12
+  %indvars.iv.next = add nuw nsw i64 %indvars.iv, 1
+  %exitcond.not = icmp eq i64 %indvars.iv.next, 1000
+  br i1 %exitcond.not, label %for.cond.cleanup, label %for.body, !llvm.loop !17
+}
+
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
+declare i64 @llvm.vscale.i64() #1
+
+; Function Attrs: nocallback nofree nosync nounwind willreturn memory(argmem: write)
+declare void @llvm.masked.store.nxv8i32.p0(<vscale x 8 x i32>, ptr captures(none), <vscale x 8 x i1>) #2
+
+attributes #0 = { nofree norecurse nosync nounwind memory(readwrite, argmem: none, inaccessiblemem: none, target_mem: none) uwtable vscale_range(2,1024) "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="generic-rv64" "target-features"="+64bit,+a,+c,+d,+f,+i,+m,+relax,+v,+zaamo,+zalrsc,+zca,+zcd,+zicsr,+zifencei,+zmmul,+zve32f,+zve32x,+zve64d,+zve64f,+zve64x,+zvl128b,+zvl32b,+zvl64b,-b,-e,-experimental-p,-experimental-smcsps,-experimental-smpmpmt,-experimental-sscsps,-experimental-svukte,-experimental-xqccmt,-experimental-xsfmclic,-experimental-xsfsclic,-experimental-y,-experimental-zibi,-experimental-zicfilp,-experimental-zicfiss,-experimental-zilx,-experimental-zvabd,-experimental-zvbc32e,-experimental-zvdot4a8i,-experimental-zvfbdota32f,-experimental-zvfbfa,-experimental-zvfofp8min,-experimental-zvfqwbdota8f,-experimental-zvfqwdota8f,-experimental-zvfwbdota16bf,-experimental-zvfwdota16bf,-experimental-zvkgs,-experimental-zvqwbdota16i,-experimental-zvqwbdota8i,-experimental-zvqwdota16i,-experimental-zvqwdota8i,-experimental-zvvfmm,-experimental-zvvmm,-experimental-zvvmtls,-experimental-zvvmttls,-experimental-zvzip,-h,-q,-sdext,-sdtrig,-sha,-shcounterenw,-shgatpa,-shlcofideleg,-shtvala,-shvsatpa,-shvstvala,-shvstvecd,-smaia,-smcdeleg,-smcntrpmf,-smcsrind,-smctr,-smdbltrp,-smepmp,-smmpm,-smnpm,-smrnmi,-smstateen,-ssaia,-ssccfg,-ssccptr,-sscofpmf,-sscounterenw,-sscsrind,-ssctr,-ssdbltrp,-ssnpm,-sspm,-ssqosid,-ssstateen,-ssstrict,-sstc,-sstvala,-sstvecd,-ssu64xl,-supm,-svade,-svadu,-svbare,-svinval,-svnapot,-svpbmt,-svrsw60t59b,-svvptc,-xaifet,-xandesbfhcvt,-xandesperf,-xandesvbfhcvt,-xandesvdot,-xandesvpackfph,-xandesvsinth,-xandesvsintload,-xcheriot,-xcvalu,-xcvbi,-xcvbitmanip,-xcvelw,-xcvmac,-xcvmem,-xcvsimd,-xmipscbop,-xmipscmov,-xmipsexectl,-xmipslsp,-xqccmp,-xqci,-xqcia,-xqciac,-xqcibi,-xqcibm,-xqcicli,-xqcicm,-xqcics,-xqcicsr,-xqciint,-xqciio,-xqcilb,-xqcili,-xqcilia,-xqcilo,-xqcilsm,-xqcisim,-xqcisls,-xqcisync,-xsfcease,-xsfmm128t,-xsfmm16t,-xsfmm32a,-xsfmm32a16f,-xsfmm32a32f,-xsfmm32a8f,-xsfmm32a8i,-xsfmm32t,-xsfmm64a64f,-xsfmm64t,-xsfmmbase,-xsfvcp,-xsfvfbfexp16e,-xsfvfexp16e,-xsfvfexp32e,-xsfvfexpa,-xsfvfexpa64e,-xsfvfnrclipxfqf,-xsfvfwmaccqqq,-xsfvqmaccdod,-xsfvqmaccqoq,-xsifivecdiscarddlone,-xsifivecflushdlone,-xsmtvdot,-xsmtvdotii,-xtheadba,-xtheadbb,-xtheadbs,-xtheadcmo,-xtheadcondmov,-xtheadfmemidx,-xtheadmac,-xtheadmemidx,-xtheadmempair,-xtheadsync,-xtheadvdot,-xventanacondops,-xwchc,-za128rs,-za64rs,-zabha,-zacas,-zalasr,-zama16b,-zawrs,-zba,-zbb,-zbc,-zbkb,-zbkc,-zbkx,-zbs,-zcb,-zce,-zcf,-zclsd,-zcmop,-zcmp,-zcmt,-zdinx,-zfa,-zfbfmin,-zfh,-zfhmin,-zfinx,-zhinx,-zhinxmin,-zic64b,-zicbom,-zicbop,-zicboz,-ziccamoa,-ziccamoc,-ziccid,-ziccif,-zicclsm,-ziccrse,-zicntr,-zicond,-zihintntl,-zihintpause,-zihpm,-zilsd,-zimop,-zk,-zkn,-zknd,-zkne,-zknh,-zkr,-zks,-zksed,-zksh,-zkt,-ztso,-zvbb,-zvbc,-zvfbfmin,-zvfbfwma,-zvfh,-zvfhmin,-zvkb,-zvkg,-zvkn,-zvknc,-zvkned,-zvkng,-zvknha,-zvknhb,-zvks,-zvksc,-zvksed,-zvksg,-zvksh,-zvkt,-zvl1024b,-zvl16384b,-zvl2048b,-zvl256b,-zvl32768b,-zvl4096b,-zvl512b,-zvl65536b,-zvl8192b" }
+attributes #1 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }
+attributes #2 = { nocallback nofree nosync nounwind willreturn memory(argmem: write) }
+
+!llvm.module.flags = !{!0, !1, !3, !4, !5}
+!llvm.ident = !{!6}
+!llvm.errno.tbaa = !{!7}
+
+!0 = !{i32 1, !"target-abi", !"lp64d"}
+!1 = !{i32 6, !"riscv-isa", !2}
+!2 = !{!"rv64i2p1_m2p0_a2p1_f2p2_d2p2_c2p0_v1p0_zicsr2p0_zifencei2p0_zmmul1p0_zaamo1p0_zalrsc1p0_zca1p0_zcd1p0_zve32f1p0_zve32x1p0_zve64d1p0_zve64f1p0_zve64x1p0_zvl128b1p0_zvl32b1p0_zvl64b1p0"}
+!3 = !{i32 8, !"PIC Level", i32 2}
+!4 = !{i32 7, !"uwtable", i32 2}
+!5 = !{i32 8, !"SmallDataLimit", i32 0}
+!6 = !{!"clang version 24.0.0git (https://github.com/chleenthu/llvm-project.git a61d112879c64d53ee1f33dbb805bcc2cffbc0b5)"}
+!7 = !{!8, !9, i64 0}
+!8 = !{!"__libc_errno", !9, i64 0}
+!9 = !{!"int", !10, i64 0}
+!10 = !{!"omnipotent char", !11, i64 0}
+!11 = !{!"Simple C/C++ TBAA"}
+!12 = !{!9, !9, i64 0}
+!13 = distinct !{!13, !14, !15, !16}
+!14 = !{!"llvm.loop.mustprogress"}
+!15 = !{!"llvm.loop.isvectorized", i32 1}
+!16 = !{!"llvm.loop.unroll.runtime.disable"}
+!17 = distinct !{!17, !14, !16, !15}

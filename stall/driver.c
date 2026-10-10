@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
   for (int i = 0; i < 1024; ++i) A[i] = B[i] = 1.0f + i;
   const char *only = argc > 1 ? argv[1] : 0;  // optional pattern filter, e.g. LC
   int nt = sizeof T / sizeof T[0];
-  printf("LMUL=m%d, cycles per copy (min of %d reps)\n", LMUL, REPS);
+  printf("LMUL=m%d, compute op %s, cycles per copy (min of %d reps)\n", LMUL, OP, REPS);
   for (int i = 0; i < nt; i += 2) {
     if (only && strcmp(only, T[i].pat)) continue;
     if (T[i].n == 0) printf("\n== %s  filler=%s ==\n%3s %8s %8s %8s\n", T[i].pat, T[i].kind, "N", "dep", "nodep", "stall");

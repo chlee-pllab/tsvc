@@ -7,7 +7,7 @@
 #   CS: vfadd.vv vX,vS,vS ...  vse32.v  vX,(a1)    (compute -> store)
 #   LS: vle32.v  vX,(a0)  ...  vse32.v  vX,(a1)    (load    -> store)
 #   CC: vfadd.vv vX,vS,vS ...  vfadd.vv vY,vX,vX   (compute -> compute)
-import sys
+import os, sys
 
 LMUL = int(sys.argv[1]) if len(sys.argv) > 1 else 4
 MAXN = int(sys.argv[2]) if len(sys.argv) > 2 else 16
@@ -16,6 +16,10 @@ U = 16  # copies of the pattern per loop iteration
 # next compute source) so the producer->consumer latency cannot be overlapped
 # by independent copies.  Only meaningful for LC and CC.
 CHAIN = int(sys.argv[3]) if len(sys.argv) > 3 else 0
+# compute op used as producer (CS, CC) and consumer (LC, CC): vfadd (f32), vadd / vmul (i32)
+OP = sys.argv[4] if len(sys.argv) > 4 else "vfadd"
+# element width from the environment: SEW=16 with OP=vfadd gives f16 (needs Zvfh)
+SEW = int(os.environ.get("SEW", "32"))
 
 
 def v(g):  # g-th register group
@@ -54,20 +58,20 @@ def body(pat, kind, n, dep, c):
         if pat == "CC":
             out += ["vadd.vx %s, %s, s1" % (v(S), v(S))]
     if pat in ("LC", "LS"):
-        out.append("vle32.v %s, (%s)" % (x, "s2" if CHAIN else "a0"))
+        out.append("vle%d.v %s, (%s)" % (SEW, x, "s2" if CHAIN else "a0"))
     else:
-        out.append("vfadd.vv %s, %s, %s" % (x, v(S), v(S)))
+        out.append("%s.vv %s, %s, %s" % (OP, x, v(S), v(S)))
     out += [filler(kind, c * MAXN + k) for k in range(n)]
     if pat in ("LC", "CC"):
-        out.append("vfadd.vv %s, %s, %s" % (v(Y), src, src))
+        out.append("%s.vv %s, %s, %s" % (OP, v(Y), src, src))
     else:
-        out.append("vse32.v %s, (a1)" % src)
+        out.append("vse%d.v %s, (a1)" % (SEW, src))
     return out
 
 
 PATS = ["LC", "CC"] if CHAIN else ["LC", "CS", "LS", "CC"]
 KINDS = ["alu", "nop", "vadd", "vfadd"]
-asm = [".text", ".option arch, +v"]
+asm = [".text", ".option arch, +v" + (", +zvfh" if SEW == 16 else "")]
 tab = []
 for pat in PATS:
     for kind in KINDS:
@@ -77,7 +81,7 @@ for pat in PATS:
                 tab.append('{"%s","%s",%d,%d,%s}' % (pat, kind, n, dep, name))
                 asm += [".globl " + name, ".p2align 6", name + ":",
                         "  addi sp, sp, -16", "  sd s1, 0(sp)", "  sd s2, 8(sp)",
-                        "  vsetvli t0, zero, e32, m%d, ta, ma" % LMUL,
+                        "  vsetvli t0, zero, e%d, m%d, ta, ma" % (SEW, LMUL),
                         "  vmv.v.i %s, 0" % v(Y), "  vmv.v.i %s, 0" % v(S),
                         "  vmv.v.i %s, 0" % v(W), "1:"]
                 for c in range(U):
@@ -87,6 +91,6 @@ for pat in PATS:
 
 open("bench.S", "w").write("\n".join(asm) + "\n")
 with open("tests.h", "w") as f:
-    f.write("#define U %d\n#define LMUL %d\n#define MAXN %d\n" % (U, LMUL, MAXN))
+    f.write("#define U %d\n#define LMUL %d\n#define MAXN %d\n#define OP \"%s\"\n" % (U, LMUL, MAXN, "%s e%d" % (OP, SEW)))
     f.write("".join("void %s(float*,float*,long,long,long);\n" % t.split(",")[-1][:-1] for t in tab))
     f.write("static const struct test T[] = {\n%s\n};\n" % ",\n".join(tab))

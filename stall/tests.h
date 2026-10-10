@@ -1,6 +1,7 @@
 #define U 16
-#define LMUL 2
+#define LMUL 8
 #define MAXN 12
+#define OP "vfmul e16"
 void t_LC_alu_0_1(float*,float*,long,long,long);
 void t_LC_alu_0_0(float*,float*,long,long,long);
 void t_LC_alu_1_1(float*,float*,long,long,long);
